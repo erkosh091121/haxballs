@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>HaxBall JS Clone - Pro Tactical AI & Clean Graphics</title>
+<!-- PeerJS для WebRTC Мультиплеера -->
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+    body { 
+        background: #111418; 
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center; 
+        align-items: center; 
+        min-height: 100vh; 
+        margin: 0; 
+        font-family: 'Segoe UI', Roboto, sans-serif;
+        color: #fff;
+        user-select: none;
+        padding: 10px 0;
+        box-sizing: border-box;
+        position: relative;
+    }
+
+    #top-bar {
+        width: 100%; max-width: 95vw; display:flex; justify-content:flex-end;
+        gap:8px; margin-bottom:10px; z-index:10; position:relative; flex-wrap:wrap;
+    }
+    #toolbar-menu {
+        display:none; position:absolute; top:calc(100% + 8px); right:0; z-index:20;
+        width:min(760px, 94vw); max-height:70vh; overflow-y:auto;
+        padding:12px; box-sizing:border-box; gap:8px; flex-wrap:wrap; align-items:center;
+        background:rgba(20,24,30,.98); border:1px solid #58616e; border-radius:10px;
+        box-shadow:0 10px 32px rgba(0,0,0,.55);
+    }
+    #toolbar-menu.open { display:flex; }
+    #toolbar-menu .top-btn, #toolbar-menu .top-input { flex:0 0 auto; }
+    @media (max-width:600px) { #toolbar-menu { right:0; width:94vw; } }
+
+    .top-input, .top-btn {
+        background: #2a2f38;
+        color: #fff;
+        border: 1px solid #444;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-weight: bold;
+        font-size: 13px;
+        outline: none;
+    }
+
+    .top-btn {
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .top-btn:hover { background: #3a404c; }
+    .top-btn.action { background: #27ae60; border-color: #2ecc71; }
+    .top-btn.action:hover { background: #219150; }
+    .top-btn.bot-red { background: #c0392b; border-color: #e74c3c; }
+    .top-btn.bot-red:hover { background: #a93226; }
+    .top-btn.bot-blue { background: #2980b9; border-color: #3498db; }
+    .top-btn.bot-blue:hover { background: #2471a3; }
+
+    #net-status {
+        font-size: 13px;
+        color: #2ecc71;
+        margin-bottom: 6px;
+        text-shadow: 1px 1px 2px #000;
+        font-weight: 600;
+    }
+
+    #customizer {
+        display: none; 
+        background: #1a1e24;
+        border: 2px solid #333;
+        border-bottom: none;
+        border-radius: 10px 10px 0 0;
+        padding: 10px 20px;
+        align-items: center;
+        gap: 15px;
+        font-size: 13px;
+        box-shadow: 0 -4px 15px rgba(0,0,0,0.5);
+        margin-bottom: -1px;
+        z-index: 2;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    #customizer label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+    }
+
+    #customizer input[type="text"], #customizer select {
+        background: #2a2f38;
+        border: 1px solid #444;
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 13px;
+        text-align: center;
+        cursor: pointer;
+    }
+
+    #customizer input[type="text"] { width: 45px; }
+    #customizer input[type="file"] { font-size: 11px; color: #ccc; }
+
+    #scoreboard {
+        background: rgba(0, 0, 0, 0.85);
+        border: 2px solid #333;
+        border-bottom: none;
+        padding: 10px 40px;
+        display: flex;
+        gap: 50px;
+        font-size: 22px;
+        font-weight: bold;
+        box-shadow: 0 -4px 15px rgba(0,0,0,0.5);
+    }
+
+    .score-box { display: flex; align-items: center; gap: 12px; }
+    .red-team { color: #e74c3c; }
+    .blue-team { color: #3498db; }
+
+    .score-val {
+        background: #222;
+        padding: 4px 14px;
+        border-radius: 6px;
+        color: #fff;
+        border: 1px solid #444;
+    }
+
+    canvas { 
+        border: 4px solid #ffffff; 
+        border-radius: 0 0 10px 10px;
+        background: #718c5a;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.8);
+        max-width: 95vw;
+        height: auto;
+    }
+
+    /* === ЧАТ === */
+    #chat-container {
+        position: absolute;
+        bottom: 30px;
+        left: 40px;
+        width: 380px;
+        z-index: 10;
+        pointer-events: none;
+    }
+
+    #chat-messages {
+        max-height: 160px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        margin-bottom: 8px;
+        font-size: 14px;
+        text-shadow: 1px 1px 2px #000;
+    }
+
+    .chat-msg {
+        background: rgba(0, 0, 0, 0.65);
+        padding: 4px 10px;
+        border-radius: 4px;
+        width: fit-content;
+        max-width: 100%;
+        word-break: break-word;
+        border-left: 3px solid #3498db;
+    }
+
+    .chat-msg.system { color: #f1c40f; border-left-color: #f1c40f; }
+    .chat-msg.error { color: #e74c3c; border-left-color: #e74c3c; }
+    .chat-msg.cheat { color: #2ecc71; border-left-color: #2ecc71; }
+
+    #chat-input {
+        width: 100%;
+        background: rgba(26, 30, 36, 0.95);
+        border: 1px solid #555;
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 14px;
+        outline: none;
+        display: none;
+        pointer-events: auto;
+        box-sizing: border-box;
+    }
+
+    #chat-hint {
+        display: none;
+        font-size: 11px;
+        color: #aaa;
+        margin-top: 4px;
+        text-shadow: 1px 1px 2px #000;
+    }
+
+    #chat-hint b { color: #f1c40f; }
+</style>
+</head>
+<body>
+
+<div id="top-bar">
+    <button id="menu-btn" class="top-btn" aria-expanded="false">☰ Меню</button>
+    <div id="toolbar-menu" aria-label="Инструменты комнаты">
+    <input type="text" id="nickname-input" class="top-input" placeholder="Никнейм" value="Игрок" maxlength="12" style="width: 100px;">
+    <button id="host-btn" class="top-btn action">🎮 Создать комнату</button>
+    <input type="text" id="room-id-input" class="top-input" placeholder="ID комнаты" style="width: 110px;">
+    <button id="join-btn" class="top-btn">🔗 Войти</button>
+    <button id="add-bot-red" class="top-btn bot-red">🤖 +Бот (Красный)</button>
+    <button id="add-bot-blue" class="top-btn bot-blue">🤖 +Бот (Синий)</button>
+    <button id="add-beast-bot" class="top-btn" style="background:#7d3c98;border-color:#af7ac5">🐺 Зверь ИИ</button>
+    <button id="pause-game" class="top-btn">⏸ Пауза</button>
+    <button id="start-game" class="top-btn action">▶ Старт</button>
+    <button id="players-btn" class="top-btn">👥 Игроки</button>
+    <button id="admin-btn" class="top-btn">🔐 Админ</button>
+    <button id="clear-bots" class="top-btn">❌ Очистить ботов</button>
+    <button id="settings-panel-btn" class="top-btn">⚙️ Настройки поля</button>
+    </div>
+</div>
+
+<div id="net-status">Режим: Одиночная игра</div>
+<div id="players-panel" style="display:none;background:#1a1e24;border:1px solid #444;border-radius:8px;padding:10px 16px;margin:0 0 8px;max-width:90vw;min-width:240px;font-size:13px"></div>
+
+<div id="customizer">
+    <label>Команда: 
+        <select id="team-select">
+            <option value="RED" selected>Красные</option>
+            <option value="BLUE">Синие</option>
+        </select>
+    </label>
+
+    <label>Номер: 
+        <input type="text" id="player-number-input" value="СУ" maxlength="3">
+    </label>
+
+    <label>Стадион: 
+        <select id="stadium-select">
+            <option value="classic" selected>Classic (Классический)</option>
+            <option value="small">Small (Маленький 1v1)</option>
+            <option value="big">Big (Большой)</option>
+            <option value="huge">Huge (Огромный)</option>
+            <option value="rounded">Rounded (С закругленными углами)</option>
+            <option value="hockey">Hockey (Хоккейная арена)</option>
+        </select>
+    </label>
+
+    <label>Камера: 
+        <select id="camera-mode-select">
+            <option value="follow_close">1. Слежение за игроком (3/5)</option>
+            <option value="follow_mid" selected>2. Средний обзор</option>
+            <option value="static">3. Вся арена</option>
+        </select>
+    </label>
+
+    <label>Аватар: 
+        <input type="file" id="player-photo-input" accept="image/*">
+    </label>
+</div>
+
+<div id="scoreboard">
+    <div class="score-box red-team">КРАСНЫЕ: <span id="score-red" class="score-val">0</span></div>
+    <div style="color: #666;">VS</div>
+    <div class="score-box blue-team">СИНИЕ: <span id="score-blue" class="score-val">0</span></div>
+</div>
+
+<canvas id="game" width="1600" height="900"></canvas>
+
+<div id="chat-container">
+    <div id="chat-messages"></div>
+    <input type="text" id="chat-input" placeholder="Введите сообщение или чит-команду..." maxlength="100">
+    <div id="chat-hint">
+        <b>Enter</b> — открыть чат / отправить · <b>Esc</b> — закрыть · <b>/help</b> — читы
+    </div>
+</div>
+
+<script>
+window.onload = function() {
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    
+    const scoreRedEl = document.getElementById('score-red');
+    const scoreBlueEl = document.getElementById('score-blue');
+    const numberInput = document.getElementById('player-number-input');
+    const photoInput = document.getElementById('player-photo-input');
+    const cameraModeSelect = document.getElementById('camera-mode-select');
+    const stadiumSelect = document.getElementById('stadium-select');
+    const teamSelect = document.getElementById('team-select');
+    const nicknameInput = document.getElementById('nickname-input');
+    
+    const menuBtn = document.getElementById('menu-btn');
+    const customizer = document.getElementById('customizer');
+    const settingsPanelBtn = document.getElementById('settings-panel-btn');
+    const hostBtn = document.getElementById('host-btn');
+    const joinBtn = document.getElementById('join-btn');
+    const roomIdInput = document.getElementById('room-id-input');
+    const netStatusEl = document.getElementById('net-status');
+
+    const addBotRedBtn = document.getElementById('add-bot-red');
+    const addBotBlueBtn = document.getElementById('add-bot-blue');
+    const clearBotsBtn = document.getElementById('clear-bots');
+    const addBeastBotBtn = document.getElementById('add-beast-bot');
+    const pauseBtn = document.getElementById('pause-game');
+    const startBtn = document.getElementById('start-game');
+    const playersBtn = document.getElementById('players-btn');
+    const adminBtn = document.getElementById('admin-btn');
+    const playersPanel = document.getElementById('players-panel');
+    let gamePaused = false;
+    let adminUnlocked = false;
+    // Default room passwords requested by the owner.
+    let adminPassword = '2026';
+    let playerPassword = 'хаксбол';
+    let localRole = 'player';
+    // Ask for a role on every page entry. This is a client-side gate only;
+    // authoritative security requires server-side validation.
+    (function requestEntryRole() {
+        const entered = prompt('Введите пароль:');
+        if (entered === adminPassword) {
+            localRole = 'admin'; adminUnlocked = true;
+        } else if (entered === playerPassword) {
+            localRole = 'player'; adminUnlocked = false;
+        } else {
+            localRole = 'player'; adminUnlocked = false;
+            alert('Неверный пароль. Доступен только обычный режим игрока.');
+        }
+    })();
+
+    const toolbarMenu = document.getElementById('toolbar-menu');
+    menuBtn.addEventListener('click', () => {
+        const opened = toolbarMenu.classList.toggle('open');
+        menuBtn.setAttribute('aria-expanded', String(opened));
+    });
+    settingsPanelBtn.addEventListener('click', () => {
+        customizer.style.display = (customizer.style.display === 'none' || customizer.style.display === '') ? 'flex' : 'none';
+    });
+
+    // ==== ЧАТ ====
+    const chatInput = document.getElementById('chat-input');
+    const chatMessages = document.getElementById('chat-messages');
+    const chatHint = document.getElementById('chat-hint');
+    let isChatOpen = false;
+    let commandHistory = [];
+    let historyIndex = -1;
+
+    // ==== СЕТЕВОЙ МОДУЛЬ И БОТЫ ====
+    let peer = null;
+    let myPeerId = null;
+    let isHost = true;
+    let connections = []; 
+    let hostConnection = null; 
+
+    let players = {}; 
+    let myId = 'local';
+    let botCounter = 1;
+
+    // ==========================================
+    // 1. ПРЕСЕТЫ СТАДИОНОВ
+    // ==========================================
+    const STADIUM_PRESETS = {
+        classic: { field: { top: 150, bottom: 1250, left: 200, right: 2200 }, goal: { topY: 570, bottomY: 830, depth: 100, postRadius: 12 }, cornerRadius: 0 },
+        small:   { field: { top: 250, bottom: 1150, left: 400, right: 2000 }, goal: { topY: 580, bottomY: 820, depth: 80, postRadius: 12 }, cornerRadius: 0 },
+        big:     { field: { top: 100, bottom: 1400, left: 100, right: 2500 }, goal: { topY: 600, bottomY: 900, depth: 120, postRadius: 14 }, cornerRadius: 0 },
+        huge:    { field: { top: 50, bottom: 1650, left: 50, right: 2950 }, goal: { topY: 680, bottomY: 1020, depth: 140, postRadius: 15 }, cornerRadius: 0 },
+        rounded: { field: { top: 150, bottom: 1250, left: 200, right: 2200 }, goal: { topY: 570, bottomY: 830, depth: 100, postRadius: 12 }, cornerRadius: 220 },
+        hockey:  { field: { top: 150, bottom: 1250, left: 250, right: 2150 }, goal: { topY: 560, bottomY: 840, depth: 130, postRadius: 12 }, cornerRadius: 300 }
+    };
+
+    let currentPresetKey = 'classic';
+    let currentPreset = STADIUM_PRESETS.classic;
+    let FIELD = currentPreset.field;
+    let GOAL_CONFIG = currentPreset.goal;
+
+    let GOAL_LEFT = { x: FIELD.left, topY: GOAL_CONFIG.topY, bottomY: GOAL_CONFIG.bottomY, depth: GOAL_CONFIG.depth, postRadius: GOAL_CONFIG.postRadius };
+    let GOAL_RIGHT = { x: FIELD.right, topY: GOAL_CONFIG.topY, bottomY: GOAL_CONFIG.bottomY, depth: GOAL_CONFIG.depth, postRadius: GOAL_CONFIG.postRadius };
+
+    function loadStadiumPreset(presetKey) {
+        currentPresetKey = presetKey;
+        currentPreset = STADIUM_PRESETS[presetKey] || STADIUM_PRESETS.classic;
+        FIELD = currentPreset.field;
+        GOAL_CONFIG = currentPreset.goal;
+
+        GOAL_LEFT = { x: FIELD.left, topY: GOAL_CONFIG.topY, bottomY: GOAL_CONFIG.bottomY, depth: GOAL_CONFIG.depth, postRadius: GOAL_CONFIG.postRadius };
+        GOAL_RIGHT = { x: FIELD.right, topY: GOAL_CONFIG.topY, bottomY: GOAL_CONFIG.bottomY, depth: GOAL_CONFIG.depth, postRadius: GOAL_CONFIG.postRadius };
+
+        resetPositions();
+    }
+
+    // ==========================================
+    // 2. ФИЗИЧЕСКИЕ НАСТРОЙКИ
+    // ==========================================
+    const PHYS = {
+        playerAccel: 0.255,       
+        playerFriction: 0.90,    
+        playerMaxSpeed: 6.0,     
+        ballFriction: 0.988,     
+        ballMaxSpeed: 13.0,      
+        kickForce: 9.0,          
+        wallElasticity: 0.5     
+    };
+
+    const CHEATS = { god: false, magnet: false, freezeBall: false };
+
+    const camera = { x: 1200, y: 700, zoom: 1.15, mode: 'follow_mid', smoothness: 0.09 };
+
+    let scoreRed = 0;
+    let scoreBlue = 0;
+    let goalBannerTimer = 0;
+    let lastScorer = ''; 
+
+    let kickoffActive = true;          
+    let kickoffAdvantage = 'RED';       
+
+    function createPlayerObject(id, team = 'RED', nickname = 'Игрок', isBot = false) {
+        return {
+            id: id,
+            nickname: nickname,
+            x: 700, y: 700,
+            vx: 0, vy: 0,
+            radius: 22,
+            team: team,
+            color: team === 'RED' ? '#e74c3c' : '#3498db',
+            kicking: false,
+            number: isBot ? 'AI' : 'СУ',
+            avatarImg: null,
+            keys: {},
+            isBot: isBot,
+            isBeast: false,
+            passRequestUntil: 0,
+            kickCooldownUntil: 0
+        };
+    }
+
+    players[myId] = createPlayerObject(myId, 'RED', nicknameInput.value);
+
+    const ball = { x: 1200, y: 700, vx: 0, vy: 0, radius: 15, color: '#ffffff' };
+
+    // Room controls: host is authoritative. Passwords are a convenience gate, not server-grade security.
+    pauseBtn.addEventListener('click', () => {
+        if (!isHost) return addMessageToChat('Поставить игру на паузу может только хост.', 'error');
+        gamePaused = true; broadcastChatSystem('Игра на паузе.');
+    });
+    startBtn.addEventListener('click', () => {
+        if (!isHost) return addMessageToChat('Запустить игру может только хост.', 'error');
+        gamePaused = false; broadcastChatSystem('Игра продолжается.');
+    });
+    playersBtn.addEventListener('click', () => {
+        const open = playersPanel.style.display !== 'block';
+        playersPanel.style.display = open ? 'block' : 'none';
+        if (open) renderPlayersPanel();
+    });
+    adminBtn.addEventListener('click', () => {
+        if (localRole === 'admin' && (isHost || players[myId]?.isAdmin)) {
+            adminUnlocked = true;
+            playersBtn.click();
+            addMessageToChat('Режим администратора включён.', 'system');
+            renderPlayersPanel();
+        } else addMessageToChat('Для админки нужен пароль 2026 и права хоста комнаты.', 'error');
+    });
+    function renderPlayersPanel() {
+        const list = Object.values(players);
+        playersPanel.innerHTML = '<b>Игроки (' + list.length + ')</b><div style="margin-top:6px">' +
+            list.map(p => '<div style="padding:3px 0;color:' + (p.team === 'RED' ? '#ff7979' : '#74b9ff') + '">' +
+            (p.isBeast ? '🐺 ' : p.isBot ? '🤖 ' : '👤 ') + escapeHtml(String(p.nickname || 'Игрок')) + ' — ' +
+            (p.team === 'RED' ? 'Красные' : 'Синие') + (p.id === myId ? ' (вы)' : '') + '</div>').join('') +
+            (adminUnlocked && localRole === 'admin' ? '<div style="margin-top:8px;color:#f1c40f">Админ-панель</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><button id="admin-reset" class="top-btn">↩ Расставить</button><button id="admin-score" class="top-btn">0:0 Счёт</button><button id="admin-remove-bots" class="top-btn">Удалить ботов</button><button id="admin-kick-guests" class="top-btn">Отключить гостей</button></div>' : '') + '</div>'; 
+        if (adminUnlocked && localRole === 'admin') {
+            document.getElementById('admin-reset')?.addEventListener('click', () => runAdminAction('reset'));
+            document.getElementById('admin-score')?.addEventListener('click', () => runAdminAction('score'));
+            document.getElementById('admin-remove-bots')?.addEventListener('click', () => runAdminAction('remove-bots'));
+            document.getElementById('admin-kick-guests')?.addEventListener('click', () => runAdminAction('kick-guests'));
+        }
+    }
+    function runAdminAction(action) {
+        if (isHost) {
+            if (action === 'reset') { resetPositions(); broadcastChatSystem('Администратор переставил игроков.'); }
+            if (action === 'score') { scoreRed = 0; scoreBlue = 0; scoreRedEl.innerText = '0'; scoreBlueEl.innerText = '0'; broadcastChatSystem('Администратор сбросил счёт.'); }
+            if (action === 'remove-bots') { Object.keys(players).forEach(id => { if (players[id].isBot) delete players[id]; }); resetPositions(); broadcastChatSystem('Администратор удалил всех ботов.'); }
+            if (action === 'kick-guests') { connections.slice().forEach(c => { delete players[c.peer]; c.close(); }); connections = []; resetPositions(); broadcastChatSystem('Администратор отключил гостей.'); }
+        } else if (hostConnection && localRole === 'admin') {
+            hostConnection.send({ type: 'ADMIN_ACTION', action });
+        }
+    }
+    function escapeHtml(v) { return v.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    // Управление ботами
+    addBeastBotBtn.addEventListener('click', () => {
+        if (!isHost) return addMessageToChat('Только хост может создавать особого бота.', 'error');
+        const team = teamSelect.value || 'RED';
+        const id = 'beast_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+        const beast = createPlayerObject(id, team, '🐺 Зверь-плеймейкер', true);
+        beast.isBeast = true;
+        beast.radius = 23;
+        players[id] = beast;
+        resetPositions();
+        broadcastChatSystem('Зверь-плеймейкер вышел на поле! Он активнее отбирает мяч и быстрее ищет пас.');
+        renderPlayersPanel();
+    });
+    addBotRedBtn.addEventListener('click', () => addBot('RED'));
+    addBotBlueBtn.addEventListener('click', () => addBot('BLUE'));
+    clearBotsBtn.addEventListener('click', () => {
+        if (!isHost) return;
+        Object.keys(players).forEach(id => {
+            if (players[id].isBot) delete players[id];
+        });
+        resetPositions();
+        broadcastChatSystem('Все боты удалены.');
+    });
+
+    function addBot(team) {
+        if (!isHost) {
+            addMessageToChat('Только хост может добавлять ботов!', 'error');
+            return;
+        }
+        const botId = 'bot_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+        const botNick = `🤖 Бот #${botCounter++}`;
+        const bot = createPlayerObject(botId, team, botNick, true);
+        players[botId] = bot;
+        resetPositions();
+        broadcastChatSystem(`${botNick} зашёл за ${team === 'RED' ? 'Красных' : 'Синих'}`);
+    }
+
+    // Слушатели данных
+    numberInput.addEventListener('input', (e) => { if (players[myId]) players[myId].number = e.target.value; });
+    nicknameInput.addEventListener('input', (e) => { if (players[myId]) players[myId].nickname = e.target.value; });
+    cameraModeSelect.addEventListener('change', (e) => { camera.mode = e.target.value; });
+    stadiumSelect.addEventListener('change', (e) => { if (isHost) loadStadiumPreset(e.target.value); });
+    teamSelect.addEventListener('change', (e) => {
+        if (players[myId]) {
+            players[myId].team = e.target.value;
+            players[myId].color = players[myId].team === 'RED' ? '#e74c3c' : '#3498db';
+            if (isHost) resetPositions();
+        }
+    });
+
+    photoInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const img = new Image();
+            img.onload = function() { if (players[myId]) players[myId].avatarImg = img; };
+            img.src = URL.createObjectURL(file);
+        }
+    });
+
+    // ==========================================
+    // 3. МУЛЬТИПЛЕЕР (PEERJS)
+    // ==========================================
+    hostBtn.addEventListener('click', () => initPeerHost());
+    joinBtn.addEventListener('click', () => {
+        const targetId = roomIdInput.value.trim();
+        if (targetId) initPeerClient(targetId);
+        else alert('Введите ID комнаты!');
+    });
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
+    if (roomParam) {
+        roomIdInput.value = roomParam;
+        initPeerClient(roomParam);
+    }
+
+    function initPeerHost() {
+        // Fixed passwords: admin = 2026, players = хаксбол.
+        adminPassword = '2026';
+        playerPassword = 'хаксбол';
+        peer = new Peer();
+        peer.on('open', (id) => {
+            myPeerId = id;
+            isHost = true;
+            
+            const oldLocal = players[myId];
+            delete players[myId];
+            myId = id;
+            oldLocal.id = myId;
+            players[myId] = oldLocal;
+
+            netStatusEl.innerText = `Вы Хост! ID комнаты: ${id} (Ссылка скопирована)`;
+            netStatusEl.style.color = '#2ecc71';
+
+            const shareUrl = `${window.location.origin}${window.location.pathname}?room=${id}`;
+            navigator.clipboard.writeText(shareUrl).catch(() => {});
+            addMessageToChat(`Комната создана! Скопируйте ID: ${id}`, 'system');
+        });
+
+        peer.on('connection', (conn) => {
+            connections.push(conn);
+            conn.on('data', (data) => handleHostReceiveData(conn, data));
+            conn.on('close', () => {
+                delete players[conn.peer];
+                connections = connections.filter(c => c !== conn);
+                broadcastChatSystem(`Игрок покинул матч`);
+            });
+        });
+    }
+
+    function initPeerClient(targetHostId) {
+        peer = new Peer();
+        peer.on('open', (id) => {
+            myPeerId = id;
+            isHost = false;
+
+            const oldLocal = players[myId];
+            delete players[myId];
+            myId = id;
+            oldLocal.id = myId;
+            players[myId] = oldLocal;
+            oldLocal.isAdmin = localRole === 'admin';
+
+            const roomPass = localRole === 'admin' ? adminPassword : playerPassword;
+            hostConnection = peer.connect(targetHostId);
+
+            hostConnection.on('open', () => {
+                netStatusEl.innerText = `Подключено к хосту: ${targetHostId}`;
+                netStatusEl.style.color = '#3498db';
+                addMessageToChat(`Успешное подключение к комнате!`, 'system');
+
+                hostConnection.send({
+                    type: 'JOIN',
+                    player: { nickname: nicknameInput.value, number: numberInput.value, team: teamSelect.value, roomPassword: roomPass }
+                });
+            });
+
+            hostConnection.on('data', (data) => handleClientReceiveData(data));
+            hostConnection.on('close', () => {
+                netStatusEl.innerText = `Соединение разорвано`;
+                netStatusEl.style.color = '#e74c3c';
+            });
+        });
+    }
+
+    function handleHostReceiveData(conn, data) {
+        if (data.type === 'JOIN') {
+            if (data.player.roomPassword !== playerPassword && data.player.roomPassword !== adminPassword) { conn.send({ type: 'JOIN_DENIED', reason: 'Неверный пароль комнаты' }); conn.close(); return; }
+            const newTeam = data.player.team || 'BLUE';
+            players[conn.peer] = createPlayerObject(conn.peer, newTeam, data.player.nickname || 'Гость');
+            players[conn.peer].isAdmin = data.player.roomPassword === adminPassword;
+            players[conn.peer].number = data.player.number || '1';
+            resetPositions();
+            broadcastChatSystem(`${players[conn.peer].nickname} присоединился к игре!`);
+        } else if (data.type === 'INPUT') {
+            if (players[conn.peer]) {
+                players[conn.peer].keys = data.keys || {};
+                if (data.keys && (data.keys.Space || data.keys.AltLeft || data.keys.AltRight || data.keys.Alt)) players[conn.peer].passRequestUntil = Date.now() + 2200;
+                players[conn.peer].nickname = data.nickname || players[conn.peer].nickname;
+                players[conn.peer].number = data.number || players[conn.peer].number;
+                if (players[conn.peer].team !== data.team) {
+                    players[conn.peer].team = data.team;
+                    players[conn.peer].color = data.team === 'RED' ? '#e74c3c' : '#3498db';
+                    resetPositions();
+                }
+            }
+        } else if (data.type === 'ADMIN_ACTION') {
+            if (!players[conn.peer]?.isAdmin) { conn.send({ type: 'CHAT', text: 'Система: отказано в доступе к админ-команде.', msgType: 'error' }); return; }
+            const action = data.action;
+            if (action === 'reset') { resetPositions(); broadcastChatSystem('Администратор переставил игроков.'); }
+            else if (action === 'score') { scoreRed = 0; scoreBlue = 0; scoreRedEl.innerText = '0'; scoreBlueEl.innerText = '0'; broadcastChatSystem('Администратор сбросил счёт.'); }
+            else if (action === 'remove-bots') { Object.keys(players).forEach(id => { if (players[id].isBot) delete players[id]; }); resetPositions(); broadcastChatSystem('Администратор удалил всех ботов.'); }
+            else if (action === 'kick-guests') { connections.slice().forEach(c => { if (c.peer !== conn.peer) { delete players[c.peer]; c.close(); connections = connections.filter(x => x !== c); } }); resetPositions(); broadcastChatSystem('Администратор отключил гостей.'); }
+        } else if (data.type === 'CHAT') {
+            broadcastChatMessage(data.sender, data.text, data.msgType);
+        }
+    }
+
+    function handleClientReceiveData(data) {
+        if (data.type === 'JOIN_DENIED') { addMessageToChat(data.reason || 'Вход запрещён.', 'error'); return; }
+        if (data.type === 'STATE') {
+            data.players.forEach(pState => {
+                if (!players[pState.id]) {
+                    players[pState.id] = createPlayerObject(pState.id, pState.team, pState.nickname, pState.isBot);
+                }
+                const p = players[pState.id];
+                p.x = pState.x; p.y = pState.y;
+                p.vx = pState.vx; p.vy = pState.vy;
+                p.team = pState.team; p.color = pState.color;
+                p.number = pState.number; p.nickname = pState.nickname;
+                p.kicking = pState.kicking; p.radius = pState.radius; p.isBeast = !!pState.isBeast;
+            });
+
+            Object.keys(players).forEach(id => {
+                if (!data.players.find(p => p.id === id)) delete players[id];
+            });
+
+            ball.x = data.ball.x; ball.y = data.ball.y;
+            ball.vx = data.ball.vx; ball.vy = data.ball.vy;
+            scoreRed = data.scores.red; scoreBlue = data.scores.blue;
+            scoreRedEl.innerText = scoreRed; scoreBlueEl.innerText = scoreBlue;
+
+            gamePaused = !!data.paused;
+            pauseBtn.disabled = !isHost; startBtn.disabled = !isHost;
+            kickoffActive = data.kickoffActive;
+            kickoffAdvantage = data.kickoffAdvantage;
+            goalBannerTimer = data.goalBannerTimer;
+            lastScorer = data.lastScorer;
+
+            if (currentPresetKey !== data.presetKey) {
+                loadStadiumPreset(data.presetKey);
+            }
+        } else if (data.type === 'CHAT') {
+            addMessageToChat(data.text, data.msgType);
+        }
+    }
+
+    function broadcastChatSystem(text) { broadcastChatMessage('Система', text, 'system'); }
+
+    function broadcastChatMessage(sender, text, type = 'normal') {
+        const formatted = sender ? `${sender}: ${text}` : text;
+        addMessageToChat(formatted, type);
+        if (isHost) {
+            connections.forEach(c => c.send({ type: 'CHAT', text: formatted, msgType: type }));
+        }
+    }
+
+    // ==== УПРАВЛЕНИЕ И ЧАТ ====
+    const keys = {};
+
+    window.addEventListener('keydown', e => {
+        if (isChatOpen) {
+            if (e.code === 'ArrowUp') {
+                e.preventDefault();
+                if (commandHistory.length > 0) {
+                    historyIndex = Math.max(0, historyIndex - 1);
+                    chatInput.value = commandHistory[historyIndex] || '';
+                }
+                return;
+            }
+            if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                if (commandHistory.length > 0) {
+                    historyIndex = Math.min(commandHistory.length, historyIndex + 1);
+                    chatInput.value = commandHistory[historyIndex] || '';
+                }
+                return;
+            }
+            if (e.code === 'Enter') sendChatMessage();
+            else if (e.code === 'Escape') closeChat();
+            return;
+        }
+
+        if (e.code === 'Enter') {
+            e.preventDefault();
+            openChat();
+            return;
+        }
+
+        keys[e.code] = true;
+        // Space is kick; Alt is an explicit request for a teammate to pass to me.
+        if ((e.code === 'Space' || e.code === 'AltLeft' || e.code === 'AltRight') && players[myId]) {
+            players[myId].passRequestUntil = Date.now() + 2200;
+            if (e.code === 'AltLeft' || e.code === 'AltRight') e.preventDefault();
+        }
+        sendInputs();
+    });
+
+    window.addEventListener('keyup', e => {
+        if (!isChatOpen) {
+            keys[e.code] = false;
+            sendInputs();
+        }
+    });
+
+    function sendInputs() {
+        if (players[myId]) players[myId].keys = keys;
+        if (!isHost && hostConnection && hostConnection.open) {
+            hostConnection.send({
+                type: 'INPUT',
+                keys: keys,
+                nickname: nicknameInput.value,
+                number: numberInput.value,
+                team: teamSelect.value
+            });
+        }
+    }
+
+    function openChat() {
+        isChatOpen = true;
+        chatInput.style.display = 'block';
+        chatHint.style.display = 'block';
+        chatInput.focus();
+        historyIndex = commandHistory.length;
+        for (let k in keys) keys[k] = false;
+        sendInputs();
+    }
+
+    function closeChat() {
+        isChatOpen = false;
+        chatInput.style.display = 'none';
+        chatHint.style.display = 'none';
+        chatInput.blur();
+        chatInput.value = '';
+    }
+
+    function sendChatMessage() {
+        let text = chatInput.value.trim();
+        if (text.length > 0) {
+            commandHistory.push(text);
+            if (commandHistory.length > 30) commandHistory.shift();
+
+            if (text.startsWith('/')) {
+                handleCheatCode(text);
+            } else {
+                const myNick = players[myId] ? players[myId].nickname : 'Игрок';
+                if (isHost) {
+                    broadcastChatMessage(myNick, text, 'normal');
+                } else if (hostConnection && hostConnection.open) {
+                    hostConnection.send({ type: 'CHAT', sender: myNick, text: text, msgType: 'normal' });
+                }
+            }
+        }
+        closeChat();
+    }
+
+    function addMessageToChat(text, type = 'normal') {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'chat-msg ' + type;
+        msgDiv.innerText = text;
+        chatMessages.appendChild(msgDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        setTimeout(() => msgDiv.remove(), 9000);
+    }
+
+    function handleCheatCode(command) {
+        let args = command.trim().split(/\s+/);
+        let cmd = args[0].toLowerCase();
+
+        const ok  = (m) => broadcastChatMessage('', '[ЧИТ] ' + m, 'cheat');
+        const err = (m) => addMessageToChat('[ОШИБКА] ' + m, 'error');
+
+        switch (cmd) {
+            case '/help':
+                addMessageToChat('=== СПИСОК ЧИТОВ ===', 'system');
+                addMessageToChat('/speed [n] — скорость игроков', 'system');
+                addMessageToChat('/kick [n] — сила удара', 'system');
+                addMessageToChat('/teleport — телепорт к мячу', 'system');
+                addMessageToChat('/ballreset — мяч в центр', 'system');
+                addMessageToChat('/reset — сбросить матч', 'system');
+                addMessageToChat('/score red|blue [n] — изменить счёт', 'system');
+                addMessageToChat('/god — бесконечное ускорение', 'system');
+                addMessageToChat('/magnet — притяжение мяча', 'system');
+                addMessageToChat('/freeze — заморозить мяч', 'system');
+                break;
+
+            case '/speed':
+                let vSpd = parseFloat(args[1]);
+                if (!isNaN(vSpd) && vSpd > 0) { PHYS.playerMaxSpeed = vSpd; ok(`Скорость: ${vSpd}`); }
+                else err('Формат: /speed [число > 0]');
+                break;
+
+            case '/kick':
+                let vKick = parseFloat(args[1]);
+                if (!isNaN(vKick) && vKick > 0) { PHYS.kickForce = vKick; ok(`Сила удара: ${vKick}`); }
+                else err('Формат: /kick [число > 0]');
+                break;
+
+            case '/teleport':
+                if (players[myId]) { players[myId].x = ball.x; players[myId].y = ball.y; ok('Телепорт к мячу.'); }
+                break;
+
+            case '/ballreset':
+                ball.x = (FIELD.left + FIELD.right) / 2; ball.y = (FIELD.top + FIELD.bottom) / 2;
+                ball.vx = 0; ball.vy = 0; ok('Мяч в центре.');
+                break;
+
+            case '/reset':
+                scoreRed = 0; scoreBlue = 0;
+                scoreRedEl.innerText = 0; scoreBlueEl.innerText = 0;
+                resetPositions(); ok('Матч сброшен.');
+                break;
+
+            case '/score':
+                let side = (args[1] || '').toLowerCase();
+                let val = parseInt(args[2], 10);
+                if ((side === 'red' || side === 'blue') && !isNaN(val)) {
+                    if (side === 'red') { scoreRed = val; scoreRedEl.innerText = val; }
+                    else { scoreBlue = val; scoreBlueEl.innerText = val; }
+                    ok(`Счёт ${side.toUpperCase()} = ${val}`);
+                } else err('Формат: /score red|blue [число]');
+                break;
+
+            case '/god':
+                CHEATS.god = !CHEATS.god; ok('Бесконечное ускорение: ' + (CHEATS.god ? 'ВКЛ' : 'ВЫКЛ'));
+                break;
+
+            case '/magnet':
+                CHEATS.magnet = !CHEATS.magnet; ok('Притяжение мяча: ' + (CHEATS.magnet ? 'ВКЛ' : 'ВЫКЛ'));
+                break;
+
+            case '/freeze':
+                CHEATS.freezeBall = !CHEATS.freezeBall;
+                if (CHEATS.freezeBall) { ball.vx = 0; ball.vy = 0; }
+                ok('Заморозка мяча: ' + (CHEATS.freezeBall ? 'ВКЛ' : 'ВЫКЛ'));
+                break;
+
+            default: err(`Неизвестная команда: ${cmd}. Введите /help`);
+        }
+    }
+
+    // Грамотный расчёт расстановки игроков и ботов
+    function resetPositions() {
+        const centerX = (FIELD.left + FIELD.right) / 2;
+        const centerY = (FIELD.top + FIELD.bottom) / 2;
+
+        const redList = Object.values(players).filter(p => p.team === 'RED');
+        const blueList = Object.values(players).filter(p => p.team === 'BLUE');
+
+        const tacticalPositionsRed = [
+            { x: centerX - 180, y: centerY },
+            { x: centerX - 450, y: centerY - 180 },
+            { x: centerX - 450, y: centerY + 180 },
+            { x: FIELD.left + 150, y: centerY },
+            { x: centerX - 300, y: centerY }
+        ];
+
+        const tacticalPositionsBlue = [
+            { x: centerX + 180, y: centerY },
+            { x: centerX + 450, y: centerY - 180 },
+            { x: centerX + 450, y: centerY + 180 },
+            { x: FIELD.right - 150, y: centerY },
+            { x: centerX + 300, y: centerY }
+        ];
+
+        redList.forEach((p, idx) => {
+            const pos = tacticalPositionsRed[idx] || { x: centerX - 300 - (idx * 50), y: centerY + (idx % 2 === 0 ? idx * 40 : -idx * 40) };
+            p.x = pos.x; p.y = pos.y; p.vx = 0; p.vy = 0;
+        });
+
+        blueList.forEach((p, idx) => {
+            const pos = tacticalPositionsBlue[idx] || { x: centerX + 300 + (idx * 50), y: centerY + (idx % 2 === 0 ? idx * 40 : -idx * 40) };
+            p.x = pos.x; p.y = pos.y; p.vx = 0; p.vy = 0;
+        });
+
+        ball.x = centerX; ball.y = centerY;
+        ball.vx = 0; ball.vy = 0;
+        kickoffActive = true;
+    }
+
+    // ==========================================
+    // 4. ТАКТИЧЕСКИЙ УМНЫЙ ИИ (ПЛАВНЫЙ И БЕЗ ТРЯСКИ)
+    // ==========================================
+    function updateBotAI() {
+        if (!isHost) return;
+        const all = Object.values(players);
+        const now = Date.now();
+        const centerX = (FIELD.left + FIELD.right) / 2;
+        const centerY = (FIELD.top + FIELD.bottom) / 2;
+
+        // Which bot is responsible for the ball? This prevents every bot chasing it.
+        const bots = all.filter(o => o.isBot);
+
+        all.forEach(p => {
+            if (!p.isBot) return;
+            const red = p.team === 'RED';
+            const dir = red ? 1 : -1;
+            const attackGoal = red ? GOAL_RIGHT : GOAL_LEFT;
+            const ownGoal = red ? GOAL_LEFT : GOAL_RIGHT;
+            const attackX = attackGoal.x;
+            const attackY = (attackGoal.topY + attackGoal.bottomY) / 2;
+            const ownY = (ownGoal.topY + ownGoal.bottomY) / 2;
+            const mates = all.filter(o => o.id !== p.id && o.team === p.team);
+            const foes = all.filter(o => o.team !== p.team);
+            const humanMates = mates.filter(o => !o.isBot);
+            const dBall = Math.hypot(ball.x-p.x, ball.y-p.y);
+
+            // Team-aware ball assignment: consider humans AND bots, so bots support
+            // a human who already controls the ball instead of blindly crowding them.
+            const teamBots = bots.filter(o => o.team === p.team);
+            const nearestTeammate = [...all.filter(o => o.team === p.team)].sort((a, b) =>
+                Math.hypot(ball.x-a.x, ball.y-a.y) - Math.hypot(ball.x-b.x, ball.y-b.y))[0];
+            const nearestBot = [...teamBots].sort((a, b) =>
+                Math.hypot(ball.x-a.x, ball.y-a.y) - Math.hypot(ball.x-b.x, ball.y-b.y))[0];
+            const humanHasBall = !!nearestTeammate && !nearestTeammate.isBot &&
+                Math.hypot(ball.x-nearestTeammate.x, ball.y-nearestTeammate.y) < 190;
+            // If a human is near the ball, bots spread out for passing options.
+            // Otherwise exactly one bot presses/chases the ball.
+            const beastChasing = p.isBeast && dBall < 360;
+            const isChaser = !humanHasBall && (beastChasing || p.id === nearestBot?.id);
+            const role = Math.max(0, teamBots.findIndex(o => o.id === p.id));
+            const pressure = Math.min(...foes.map(o => Math.hypot(o.x-p.x, o.y-p.y)), 9999);
+            const ballPressure = Math.min(...foes.map(o => Math.hypot(o.x-ball.x, o.y-ball.y)), 9999);
+            const underPressure = pressure < 155 || ballPressure < 125;
+            const teamPossession = Math.min(...all.filter(o => o.team === p.team).map(o => Math.hypot(o.x-ball.x, o.y-ball.y)), 9999)
+                < Math.min(...foes.map(o => Math.hypot(o.x-ball.x, o.y-ball.y)), 9999);
+
+            let sepX = 0, sepY = 0;
+            mates.forEach(tm => {
+                const d = Math.hypot(p.x-tm.x, p.y-tm.y);
+                if (d > 0 && d < 350) {
+                    // Moderate separation: keep passing triangles compact without clumping.
+                    const force = (350-d) * (d < 155 ? 1.08 : 0.62);
+                    sepX += (p.x-tm.x)/d * force;
+                    sepY += (p.y-tm.y)/d * force;
+                }
+            });
+
+            let tx = p.x, ty = p.y, shouldKick = false;
+            if (isChaser) {
+                // Find the best passing lane, including through-balls into space.
+                const requested = humanMates
+                    .filter(tm => tm.passRequestUntil > now || tm.keys?.AltLeft || tm.keys?.AltRight || tm.keys?.Alt || tm.keys?.Space)
+                    .sort((a,b) => Math.hypot(a.x-ball.x,a.y-ball.y)-Math.hypot(b.x-ball.x,b.y-ball.y))[0];
+                let best = null, bestScore = -Infinity;
+                mates.forEach(tm => {
+                    const passDist = Math.hypot(tm.x-p.x, tm.y-p.y);
+                    if (passDist < 85 || passDist > 1050) return;
+                    const forwardGain = dir * (tm.x-p.x);
+                    const laneClearance = Math.min(...foes.map(o => distToSegment(o, p, tm)), 999);
+                    const receiverPressure = Math.min(...foes.map(o => Math.hypot(o.x-tm.x,o.y-tm.y)), 999);
+                    const movingForward = dir * tm.vx;
+                    // Predict where the receiver will be when the pass arrives, rather than
+                    // passing to their current position. Estimate ball travel time from distance
+                    // and kick strength, then integrate the receiver's damped velocity.
+                    const passSpeedEstimate = Math.max(4.2, (PHYS.kickForce || 9) * 0.76);
+                    const flightFrames = Math.max(4, Math.min(34, passDist / passSpeedEstimate));
+                    const playerFriction = Math.max(0.80, Math.min(0.999, PHYS.playerFriction || 0.94));
+                    const movementFactor = (1 - Math.pow(playerFriction, flightFrames)) / (1 - playerFriction);
+                    const predictedRunX = tm.vx * movementFactor;
+                    const predictedRunY = tm.vy * movementFactor;
+                    // Small forward lead is useful only when the teammate is actually moving
+                    // into space; don't blindly lead a teammate who is stopping or turning back.
+                    const forwardRun = dir * tm.vx;
+                    const runLeadX = predictedRunX + dir * Math.max(0, forwardRun) * Math.min(8, flightFrames * 0.28);
+                    const leadX = tm.x + runLeadX;
+                    const leadY = tm.y + predictedRunY;
+                    const leadPoint = {x: Math.max(FIELD.left+25, Math.min(FIELD.right-25, leadX)),
+                                       y: Math.max(FIELD.top+25, Math.min(FIELD.bottom-25, leadY))};
+                    const leadDistance = Math.hypot(leadPoint.x-p.x, leadPoint.y-p.y);
+                    const leadLane = Math.min(...foes.map(o => distToSegment(o, p, leadPoint)), 999);
+                    const leadReceiverPressure = Math.min(...foes.map(o => Math.hypot(o.x-leadPoint.x,o.y-leadPoint.y)), 999);
+                    const distancePenalty = passDist * 0.045;
+                    const score = forwardGain*0.30 + laneClearance*0.62 + leadLane*0.88
+                        + Math.min(receiverPressure, 260)*0.18 + Math.min(leadReceiverPressure, 300)*0.48
+                        - distancePenalty - Math.max(0, leadDistance-passDist)*0.035
+                        - (receiverPressure < 58 ? 95 : 0)
+                        - (leadReceiverPressure < 52 ? 80 : 0)
+                        + (movingForward > 0.5 ? 28 : 0)
+                        + (tm.isBot ? 0 : 7);
+                    const finalScore = score + (tm === requested ? 10000 : 0);
+                    if (finalScore > bestScore) { bestScore = finalScore; best = {player:tm, point:leadPoint, lane:laneClearance, score:finalScore, flightFrames}; }
+                });
+
+                const canTouchBall = dBall <= p.radius + ball.radius + 24;
+                const goodShotY = p.y < attackY ? attackGoal.topY+32 : attackGoal.bottomY-32;
+                const shotLane = Math.min(...foes.map(o => distToSegment(o, p, {x:attackX,y:goodShotY})), 999);
+                const shotDistance = Math.hypot(attackX-ball.x, goodShotY-ball.y);
+                const shotScore = shotLane - shotDistance*0.08;
+                const goalDistance = Math.hypot(attackX-ball.x, attackY-ball.y);
+                // Shoot when close enough and the lane is genuinely open; from farther
+                // away prefer a useful pass, especially when a teammate is running forward.
+                const clearShot = shotLane > 48 && goalDistance < 560 && dir*(attackX-ball.x) > 0;
+                // Measure whether the direct route toward the opponent goal is blocked.
+                // This is evaluated from the ball, not the bot, so a ball rolling backward
+                // does not trick the AI into following it away from the attack.
+                const forwardPoint = {
+                    x: Math.max(FIELD.left+ball.radius+8, Math.min(FIELD.right-ball.radius-8, ball.x + dir*285)),
+                    y: ball.y
+                };
+                const forwardLane = Math.min(...foes.map(o => distToSegment(o, ball, forwardPoint)), 999);
+                const forwardEndpoint = Math.min(...foes.map(o => Math.hypot(o.x-forwardPoint.x, o.y-forwardPoint.y)), 999);
+                const forwardBlocked = forwardLane < 52 || forwardEndpoint < 78;
+                // A safe forward pass beats forcing a dribble into a defender.
+                let passTarget = null;
+                // Quick tiki-taka: take a clearly safe pass early instead of holding the ball
+                // while repeatedly reconsidering the same options.
+                const safeQuickPass = best && best.lane > 18 && best.score > 0 &&
+                    (best.player.isBot || forwardBlocked || underPressure || goalDistance > 145);
+                // When in control, prefer an available safe teammate pass immediately;
+                // only override it for a very close, clear shot on goal.
+                if (best && (requested || safeQuickPass || (underPressure && best.lane > 18) ||
+                    (forwardBlocked && best.lane > 20 && best.score > 0))) passTarget = best;
+                const shoot = clearShot && (!passTarget || goalDistance < 145 || shotScore > best.score*1.18);
+
+                let aimX, aimY;
+                if (passTarget) {
+                    aimX = passTarget.point.x;
+                    aimY = passTarget.point.y;
+                } else if (shoot) {
+                    aimX = attackX;
+                    aimY = goodShotY;
+                } else {
+                    // Dynamic dribbling: re-evaluate several directions every frame.
+                    // This prevents the bot from committing to one straight line for the whole attack.
+                    const candidates = [
+                        { x: ball.x + dir*300, y: ball.y },
+                        { x: ball.x + dir*245, y: ball.y - 145 },
+                        { x: ball.x + dir*245, y: ball.y + 145 },
+                        { x: ball.x + dir*165, y: ball.y - 225 },
+                        { x: ball.x + dir*165, y: ball.y + 225 },
+                        { x: ball.x + dir*65, y: ball.y - 270 },
+                        { x: ball.x + dir*65, y: ball.y + 270 }
+                    ];
+                    let bestLane = null, bestLaneScore = -Infinity;
+                    candidates.forEach(c => {
+                        c.x = Math.max(FIELD.left+ball.radius+8, Math.min(FIELD.right-ball.radius-8, c.x));
+                        c.y = Math.max(FIELD.top+ball.radius+8, Math.min(FIELD.bottom-ball.radius-8, c.y));
+                        const laneClear = Math.min(...foes.map(o => distToSegment(o, ball, c)), 999);
+                        const endpointClear = Math.min(...foes.map(o => Math.hypot(o.x-c.x, o.y-c.y)), 999);
+                        const progress = dir * (c.x-ball.x);
+                        const verticalChange = Math.abs(c.y-ball.y);
+                        const nearest = foes.reduce((v,o) => Math.min(v, Math.hypot(o.x-ball.x,o.y-ball.y)), 999);
+                        // When pressed, favor a sharp turn into open space over a blocked forward run.
+                        // Prefer a decisive turn toward goal when the forward lane is open.
+                        // If it is blocked, favor a diagonal exit into space rather than
+                        // repeatedly trying to push the ball through the same defender.
+                        const forwardBonus = forwardBlocked
+                            ? (verticalChange * 0.42 + laneClear * 0.22)
+                            : Math.max(0, progress) * 0.42;
+                        const backwardPenalty = progress < 0 ? 95 + Math.abs(progress)*0.16 : 0;
+                        const turnOutBonus = nearest < 145 && verticalChange > 75 ? 38 : 0;
+                        const score = laneClear*0.95 + endpointClear*0.34 + progress*0.16
+                            + forwardBonus + turnOutBonus
+                            + (nearest < 115 ? verticalChange*0.30 : verticalChange*0.05)
+                            - backwardPenalty;
+                        if (score > bestLaneScore) { bestLaneScore = score; bestLane = c; }
+                    });
+                    aimX = bestLane ? bestLane.x : ball.x + dir*220;
+                    aimY = bestLane ? bestLane.y : ball.y;
+                    // Never adopt the ball's backward velocity as the attacking direction.
+                    // The bot repositions behind the ball and kicks toward this forward target.
+                    if (!forwardBlocked && dir*(aimX-ball.x) < 90) aimX = ball.x + dir*210;
+                }
+                aimX = Math.max(FIELD.left+20, Math.min(FIELD.right-20, aimX));
+                aimY = Math.max(FIELD.top+20, Math.min(FIELD.bottom-20, aimY));
+                // Aim at the ball's near-future position to avoid chasing its old position.
+                const ballSpeed = Math.hypot(ball.vx, ball.vy);
+                // Do not let a backward-rolling ball drag the attacker away from goal.
+                // Predict farther only when the ball is already moving into the attack.
+                const forwardBallSpeed = dir * ball.vx;
+                const leadFrames = forwardBallSpeed > 0.25
+                    ? Math.min(2.4, ballSpeed * 0.11)
+                    : Math.min(0.55, ballSpeed * 0.035);
+                const predictedBallX = ball.x + ball.vx * leadFrames;
+                const predictedBallY = ball.y + ball.vy * leadFrames;
+                const angle = Math.atan2(aimY-predictedBallY, aimX-predictedBallX);
+                const approach = p.radius + ball.radius + 7;
+                const desiredX = predictedBallX - Math.cos(angle)*approach;
+                const desiredY = predictedBallY - Math.sin(angle)*approach;
+                if (!canTouchBall) {
+                    // When the ball is rolling backward, get around it from the side
+                    // opposite the opponent goal instead of chasing its backward motion.
+                    tx = desiredX; ty = desiredY;
+                    if (forwardBallSpeed < -0.6 && dBall < 115) {
+                        tx = ball.x - dir * (p.radius + ball.radius + 13);
+                        ty = ball.y + Math.max(-28, Math.min(28, aimY-ball.y)) * 0.35;
+                    }
+                } else {
+                    // First get behind the ball relative to the chosen attacking direction.
+                    // Do not kick while standing between the ball and the opponent goal.
+                    const kickStandOff = Math.max(7, p.radius + ball.radius + 2);
+                    const standX = ball.x - Math.cos(angle)*kickStandOff;
+                    const standY = ball.y - Math.sin(angle)*kickStandOff;
+                    tx = standX;
+                    ty = standY;
+                    const toPlayerX = p.x - ball.x;
+                    const toPlayerY = p.y - ball.y;
+                    const behindProjection = toPlayerX*Math.cos(angle) + toPlayerY*Math.sin(angle);
+                    // Faster decision at contact: preserve the behind-ball approach, but don't overthink.
+                    const correctlyBehind = behindProjection < -Math.max(1, p.radius*0.08);
+                    const playerAngle = Math.atan2(ball.y-p.y, ball.x-p.x);
+                    let diff = Math.abs(playerAngle-angle);
+                    if (diff > Math.PI) diff = 2*Math.PI-diff;
+                    if (!correctlyBehind && dBall > p.radius + ball.radius + 5) {
+                        p.vx *= 0.68;
+                        p.vy *= 0.68;
+                    }
+                    const contactRange = p.radius + ball.radius + (underPressure ? 28 : 25);
+                    // Don't wait for a perfect body angle: kick as soon as the bot is in range
+                    // and roughly aligned. This makes shots and passes much more responsive.
+                    const aimTolerance = underPressure ? 1.85 : 1.68;
+                    if (dBall <= contactRange
+                        && diff < aimTolerance
+                        && now >= (p.kickCooldownUntil || 0)) shouldKick = true;
+                }
+            } else {
+                // Team shape without the ball: cover the goal, press intelligently,
+                // or create passing triangles around a human/bot ball carrier.
+                const defending = Math.hypot(ball.x-ownGoal.x, ball.y-ownY) < 600;
+                const nearestFoeToBall = [...foes].sort((a,b) =>
+                    Math.hypot(ball.x-a.x, ball.y-a.y)-Math.hypot(ball.x-b.x, ball.y-b.y))[0];
+                const looseBall = ballPressure > 95 && dBall < 310;
+                if (looseBall && (role === 1 || teamBots.length === 1)) {
+                    // Secondary presser attacks a loose ball; the primary chaser remains unique.
+                    tx = ball.x - ball.vx*2 + dir*12;
+                    ty = ball.y - ball.vy*2;
+                } else if (role === 0 || (defending && role === 1)) {
+                    // Goal-side defender tracks the ball's lane and protects the middle.
+                    tx = ownGoal.x + dir*165;
+                    ty = Math.max(ownGoal.topY+24, Math.min(ownGoal.bottomY-24, ball.y*0.68 + ownY*0.32));
+                    if (defending && ballPressure < 155 && role === 1) {
+                        tx = ball.x - dir*42; ty = ball.y;
+                    }
+                } else {
+                    // Tiki-taka support: every off-ball bot chooses a different useful lane.
+                    // Keep one safe outlet behind the carrier, one wide option and one forward runner.
+                    const carrier = nearestTeammate || p;
+                    const carrierHasBall = Math.hypot(ball.x-carrier.x, ball.y-carrier.y) < 190;
+                    const carrierX = carrierHasBall ? carrier.x : ball.x;
+                    const carrierY = carrierHasBall ? carrier.y : ball.y;
+                    const forward = dir*(ball.x-p.x);
+                    const side = (role % 2 === 0 ? -1 : 1);
+                    const attackingRun = teamPossession && carrierHasBall && role % 3 === 1;
+                    const supportCandidates = [
+                        {x: carrierX-dir*125, y: carrierY+side*90, kind: 'safe'},
+                        {x: carrierX+dir*175, y: carrierY+side*145, kind: 'forward'},
+                        {x: carrierX+dir*245, y: carrierY-side*165, kind: 'run'},
+                        {x: carrierX+dir*65, y: carrierY+side*235, kind: 'wide'},
+                        {x: carrierX-dir*35, y: carrierY-side*175, kind: 'switch'}
+                    ];
+                    let chosenSpot = null, chosenSpotScore = -Infinity;
+                    supportCandidates.forEach((spot, ci) => {
+                        spot.x = Math.max(FIELD.left+70, Math.min(FIELD.right-70, spot.x));
+                        spot.y = Math.max(FIELD.top+65, Math.min(FIELD.bottom-65, spot.y));
+                        const foeSpace = Math.min(...foes.map(o => Math.hypot(o.x-spot.x,o.y-spot.y)), 999);
+                        const passLane = Math.min(...foes.map(o => distToSegment(o, {x:carrierX,y:carrierY}, spot)), 999);
+                        const progress = dir*(spot.x-carrierX);
+                        const mateSpace = Math.min(...mates.filter(o => o.id !== p.id).map(o => Math.hypot(o.x-spot.x,o.y-spot.y)), 999);
+                        const duplicatePenalty = mates.filter(o => Math.hypot(o.x-spot.x,o.y-spot.y)<185).length*150;
+                        const typeBonus = (spot.kind === 'run' && attackingRun ? 65 : 0)
+                            + (spot.kind === 'safe' && underPressure ? 48 : 0)
+                            + (spot.kind === 'wide' ? 22 : 0);
+                        const score = foeSpace*0.62 + passLane*0.82 + Math.min(mateSpace,300)*0.48
+                            + progress*0.18 + typeBonus - duplicatePenalty - Math.hypot(p.x-spot.x,p.y-spot.y)*0.08;
+                        if (score > chosenSpotScore) { chosenSpotScore = score; chosenSpot = spot; }
+                    });
+                    if (chosenSpot) { tx = chosenSpot.x; ty = chosenSpot.y; }
+                    else { tx = carrierX+dir*145; ty = carrierY+side*145; }
+                    // Give every support bot its own vertical channel instead of forming a crowd.
+                    // Role 2/4 hold wider lanes; role 3 makes a forward run in the opposite lane.
+                    const laneOffset = role === 2 ? -210 : role === 3 ? 205 : role === 4 ? -265 : (role % 2 ? 165 : -165);
+                    const laneY = Math.max(FIELD.top+85, Math.min(FIELD.bottom-85, carrierY + laneOffset));
+                    ty = ty*0.42 + laneY*0.58;
+                    const minimumMateGap = 235;
+                    mates.forEach(tm => {
+                        const td = Math.hypot(tx-tm.x, ty-tm.y);
+                        if (td > 0 && td < minimumMateGap) {
+                            tx += (tx-tm.x)/td * (minimumMateGap-td)*0.48;
+                            ty += (ty-tm.y)/td * (minimumMateGap-td)*0.48;
+                        }
+                    });
+                    tx = Math.max(FIELD.left+70, Math.min(FIELD.right-70, tx));
+                    ty = Math.max(FIELD.top+65, Math.min(FIELD.bottom-65, ty));
+                    // If opponents have the ball, maintain a compact block: one presses,
+                    // another cuts the most direct passing lane, defenders protect goal-side space.
+                    if (!teamPossession) {
+                        const foeCarrier = [...foes].sort((a,b) => Math.hypot(ball.x-a.x,ball.y-a.y)-Math.hypot(ball.x-b.x,ball.y-b.y))[0];
+                        if (foeCarrier && role === 1 && ballPressure < 220) {
+                            tx = ball.x - foeCarrier.vx*2 + dir*15;
+                            ty = ball.y - foeCarrier.vy*2;
+                        } else if (foeCarrier && role >= 2) {
+                            const likelyReceiver = [...foes].filter(o => o.id !== foeCarrier.id)
+                                .sort((a,b) => Math.hypot(a.x-ball.x,a.y-ball.y)-Math.hypot(b.x-ball.x,b.y-ball.y))[0];
+                            if (likelyReceiver) {
+                                tx = likelyReceiver.x - dir*55;
+                                ty = likelyReceiver.y;
+                            }
+                        }
+                    }
+                }
+            }
+
+            tx += sepX; ty += sepY;
+            // Wall escape: when close to a boundary, bias the target back into the field
+            // instead of repeatedly pushing into the wall or corner.
+            const wallMargin = p.radius + 38;
+            if (p.x - FIELD.left < wallMargin) tx = Math.max(tx, p.x + (wallMargin - (p.x-FIELD.left))*1.35);
+            if (FIELD.right - p.x < wallMargin) tx = Math.min(tx, p.x - (wallMargin - (FIELD.right-p.x))*1.35);
+            if (p.y - FIELD.top < wallMargin) ty = Math.max(ty, p.y + (wallMargin - (p.y-FIELD.top))*1.35);
+            if (FIELD.bottom - p.y < wallMargin) ty = Math.min(ty, p.y - (wallMargin - (FIELD.bottom-p.y))*1.35);
+            tx = Math.max(FIELD.left+wallMargin, Math.min(FIELD.right-wallMargin, tx));
+            ty = Math.max(FIELD.top+wallMargin, Math.min(FIELD.bottom-wallMargin, ty));
+            const dx = tx-p.x, dy = ty-p.y;
+            const len = Math.hypot(dx,dy);
+            if (len > 5) {
+                const targetX = dx / len, targetY = dy / len;
+                const speedNow = Math.hypot(p.vx, p.vy);
+                if (speedNow > 0.8) {
+                    const velX = p.vx / speedNow, velY = p.vy / speedNow;
+                    const alignment = velX * targetX + velY * targetY;
+                    // Brake hard on sharp turns instead of sliding past the ball or teammate.
+                    if (alignment < 0.15) { p.vx *= 0.78; p.vy *= 0.78; }
+                    else if (alignment < 0.45) { p.vx *= 0.91; p.vy *= 0.91; }
+                }
+                const accel = isChaser && dBall < 180 ? 0.86 : 0.78;
+                p.vx += targetX*PHYS.playerAccel*accel;
+                p.vy += targetY*PHYS.playerAccel*accel;
+            }
+            p.kicking = shouldKick;
+            p.keys = { Space: shouldKick };
+        });
+    }
+
+    function distToSegment(p, v, w) {
+        let l2 = (v.x - w.x)**2 + (v.y - w.y)**2;
+        if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+    }
+
+    // ==========================================
+    // 5. ДВИЖОК ФИЗИКИ (ХОСТ)
+    // ==========================================
+    function updatePhysics() {
+        if (!isHost || gamePaused) { if (isHost) broadcastGameState(); return; }
+
+        updateBotAI();
+
+        Object.values(players).forEach(p => {
+            const pKeys = p.keys || {};
+            if (!p.isBot) {
+                if (pKeys['KeyW']) p.vy -= PHYS.playerAccel;
+                if (pKeys['KeyS']) p.vy += PHYS.playerAccel;
+                if (pKeys['KeyA']) p.vx -= PHYS.playerAccel;
+                if (pKeys['KeyD']) p.vx += PHYS.playerAccel;
+                p.kicking = !!pKeys['Space'];
+            }
+
+            let speed = Math.hypot(p.vx, p.vy);
+            let maxSpd = (CHEATS.god && p.id === myId) ? PHYS.playerMaxSpeed * 3 : PHYS.playerMaxSpeed;
+            if (speed > maxSpd) {
+                p.vx = (p.vx / speed) * maxSpd;
+                p.vy = (p.vy / speed) * maxSpd;
+            }
+
+            p.x += p.vx; p.y += p.vy;
+            if (!CHEATS.god || p.id !== myId) {
+                p.vx *= PHYS.playerFriction;
+                p.vy *= PHYS.playerFriction;
+            }
+
+            let dx = ball.x - p.x;
+            let dy = ball.y - p.y;
+            let dist = Math.hypot(dx, dy);
+            let minDist = p.radius + ball.radius;
+
+            if (kickoffActive && dist <= minDist + 4 && p.team === kickoffAdvantage) {
+                kickoffActive = false;
+            }
+
+            if (p.kicking && dist <= minDist + 8 && dist > 0 && Date.now() >= (p.kickCooldownUntil || 0)) {
+                let nx = dx / dist, ny = dy / dist;
+                ball.vx += nx * PHYS.kickForce;
+                ball.vy += ny * PHYS.kickForce;
+                p.kickCooldownUntil = Date.now() + (p.isBot ? 45 : 220);
+                if (kickoffActive && p.team === kickoffAdvantage) kickoffActive = false;
+            }
+
+            if (CHEATS.magnet && !CHEATS.freezeBall && p.id === myId) {
+                let mdx = p.x - ball.x, mdy = p.y - ball.y, mdist = Math.hypot(mdx, mdy);
+                if (mdist > 1) { ball.vx += (mdx / mdist) * 0.8; ball.vy += (mdy / mdist) * 0.8; }
+            }
+        });
+
+        if (!CHEATS.freezeBall) {
+            ball.x += ball.vx; ball.y += ball.vy;
+            ball.vx *= PHYS.ballFriction; ball.vy *= PHYS.ballFriction;
+            let bSpeed = Math.hypot(ball.vx, ball.vy);
+            if (bSpeed > PHYS.ballMaxSpeed) {
+                ball.vx = (ball.vx / bSpeed) * PHYS.ballMaxSpeed;
+                ball.vy = (ball.vy / bSpeed) * PHYS.ballMaxSpeed;
+            }
+        } else { ball.vx = 0; ball.vy = 0; }
+
+        handleKickoffRestrictions();
+
+        for (let iter = 0; iter < 3; iter++) {
+            const playerList = Object.values(players);
+
+            playerList.forEach(p => {
+                let dx = ball.x - p.x, dy = ball.y - p.y, dist = Math.hypot(dx, dy);
+                let minDist = p.radius + ball.radius;
+                if (dist < minDist && dist > 0) {
+                    let nx = dx / dist, ny = dy / dist, overlap = minDist - dist;
+                    ball.x += nx * overlap * 0.7; ball.y += ny * overlap * 0.7;
+                    p.x -= nx * overlap * 0.3; p.y -= ny * overlap * 0.3;
+                    if (iter === 0) {
+                        ball.vx += nx * 0.5 + p.vx * 0.25;
+                        ball.vy += ny * 0.5 + p.vy * 0.25;
+                    }
+                }
+            });
+
+            for (let i = 0; i < playerList.length; i++) {
+                for (let j = i + 1; j < playerList.length; j++) {
+                    let p1 = playerList[i], p2 = playerList[j];
+                    let dx = p2.x - p1.x, dy = p2.y - p1.y, dist = Math.hypot(dx, dy);
+                    let minDist = p1.radius + p2.radius;
+                    if (dist < minDist && dist > 0) {
+                        let nx = dx / dist, ny = dy / dist, overlap = minDist - dist;
+                        p1.x -= nx * overlap * 0.5; p1.y -= ny * overlap * 0.5;
+                        p2.x += nx * overlap * 0.5; p2.y += ny * overlap * 0.5;
+                    }
+                }
+            }
+
+            const allPosts = [
+                { x: GOAL_LEFT.x, y: GOAL_LEFT.topY }, { x: GOAL_LEFT.x, y: GOAL_LEFT.bottomY },
+                { x: GOAL_RIGHT.x, y: GOAL_RIGHT.topY }, { x: GOAL_RIGHT.x, y: GOAL_RIGHT.bottomY }
+            ];
+
+            allPosts.forEach(post => {
+                [...playerList, ball].forEach(obj => {
+                    let pdx = obj.x - post.x, pdy = obj.y - post.y, pDist = Math.hypot(pdx, pdy);
+                    let pMinDist = obj.radius + GOAL_CONFIG.postRadius;
+                    if (pDist < pMinDist && pDist > 0) {
+                        let pnx = pdx / pDist, pny = pdy / pDist, pOverlap = pMinDist - pDist;
+                        obj.x += pnx * pOverlap; obj.y += pny * pOverlap;
+                        obj.vx = pnx * Math.abs(obj.vx) * PHYS.wallElasticity;
+                        obj.vy = pny * Math.abs(obj.vy) * PHYS.wallElasticity;
+                    }
+                });
+            });
+
+            playerList.forEach(p => handleBoundaries(p, 0.2, false));
+            handleBoundaries(ball, PHYS.wallElasticity, true);
+        }
+
+        if (ball.x - ball.radius > GOAL_RIGHT.x && ball.y > GOAL_RIGHT.topY && ball.y < GOAL_RIGHT.bottomY) {
+            scoreRed++; scoreRedEl.innerText = scoreRed;
+            lastScorer = 'RED'; kickoffAdvantage = 'BLUE';
+            goalBannerTimer = 90; resetPositions();
+        }
+
+        if (ball.x + ball.radius < GOAL_LEFT.x && ball.y > GOAL_LEFT.topY && ball.y < GOAL_LEFT.bottomY) {
+            scoreBlue++; scoreBlueEl.innerText = scoreBlue;
+            lastScorer = 'BLUE'; kickoffAdvantage = 'RED';
+            goalBannerTimer = 90; resetPositions();
+        }
+
+        if (goalBannerTimer > 0) goalBannerTimer--;
+
+        broadcastGameState();
+    }
+
+    function broadcastGameState() {
+        if (!isHost || connections.length === 0) return;
+
+        const stateData = {
+            type: 'STATE',
+            players: Object.values(players).map(p => ({
+                id: p.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy,
+                team: p.team, color: p.color, number: p.number,
+                nickname: p.nickname, kicking: p.kicking, radius: p.radius,
+                isBot: p.isBot, isBeast: !!p.isBeast
+            })),
+            ball: { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy },
+            scores: { red: scoreRed, blue: scoreBlue },
+            kickoffActive, kickoffAdvantage, goalBannerTimer, lastScorer,
+            presetKey: currentPresetKey, paused: gamePaused
+        };
+
+        connections.forEach(c => { if (c.open) c.send(stateData); });
+    }
+
+    function handleKickoffRestrictions() {
+        if (!kickoffActive) return;
+
+        const centerX = (FIELD.left + FIELD.right) / 2;
+        const centerY = (FIELD.top + FIELD.bottom) / 2;
+        const centerCircleRadius = 160;
+
+        Object.values(players).forEach(p => {
+            if (p.team !== kickoffAdvantage) {
+                let pdx = p.x - centerX, pdy = p.y - centerY, pDist = Math.hypot(pdx, pdy);
+                if (pDist < centerCircleRadius + p.radius && pDist > 0) {
+                    let pnx = pdx / pDist, pny = pdy / pDist, overlap = (centerCircleRadius + p.radius) - pDist;
+                    p.x += pnx * overlap; p.y += pny * overlap; p.vx = 0;
+                }
+                if (kickoffAdvantage === 'RED' && p.x - p.radius < centerX) {
+                    p.x = centerX + p.radius; p.vx = 0;
+                } else if (kickoffAdvantage === 'BLUE' && p.x + p.radius > centerX) {
+                    p.x = centerX - p.radius; p.vx = 0;
+                }
+            }
+        });
+    }
+
+    function handleBoundaries(obj, elasticity, isBall) {
+        const offset = isBall ? 0 : obj.radius; 
+        const topBound = FIELD.top - offset, bottomBound = FIELD.bottom + offset;
+        const leftBound = FIELD.left - offset, rightBound = FIELD.right + offset;
+
+        if (obj.y - obj.radius < topBound) { obj.y = topBound + obj.radius; obj.vy = -obj.vy * elasticity; }
+        if (obj.y + obj.radius > bottomBound) { obj.y = bottomBound - obj.radius; obj.vy = -obj.vy * elasticity; }
+
+        const inLeftGoalY = (obj.y > GOAL_LEFT.topY && obj.y < GOAL_LEFT.bottomY);
+        if (!inLeftGoalY && obj.x - obj.radius < leftBound) {
+            obj.x = leftBound + obj.radius; obj.vx = -obj.vx * elasticity;
+        } else if (inLeftGoalY && obj.x < FIELD.left) {
+            if (obj.x - obj.radius < (FIELD.left - GOAL_LEFT.depth) - offset) {
+                obj.x = ((FIELD.left - GOAL_LEFT.depth) - offset) + obj.radius; obj.vx = -obj.vx * elasticity;
+            }
+        }
+
+        const inRightGoalY = (obj.y > GOAL_RIGHT.topY && obj.y < GOAL_RIGHT.bottomY);
+        if (!inRightGoalY && obj.x + obj.radius > rightBound) {
+            obj.x = rightBound - obj.radius; obj.vx = -obj.vx * elasticity;
+        } else if (inRightGoalY && obj.x > FIELD.right) {
+            if (obj.x + obj.radius > (FIELD.right + GOAL_RIGHT.depth) + offset) {
+                obj.x = ((FIELD.right + GOAL_RIGHT.depth) + offset) - obj.radius; obj.vx = -obj.vx * elasticity;
+            }
+        }
+    }
+
+    function updateCamera() {
+        const myP = players[myId];
+        if (!myP) return;
+
+        if (camera.mode === 'static') {
+            camera.x = (FIELD.left + FIELD.right) / 2;
+            camera.y = (FIELD.top + FIELD.bottom) / 2;
+            camera.zoom = 0.58;
+            return;
+        }
+
+        let targetX = camera.mode === 'follow_close' ? myP.x * 0.85 + ball.x * 0.15 : myP.x * 0.5 + ball.x * 0.5;
+        let targetY = camera.mode === 'follow_close' ? myP.y * 0.85 + ball.y * 0.15 : myP.y * 0.5 + ball.y * 0.5;
+        camera.zoom = camera.mode === 'follow_close' ? 1.65 : 1.15;
+
+        camera.x += (targetX - camera.x) * camera.smoothness;
+        camera.y += (targetY - camera.y) * camera.smoothness;
+    }
+
+    // ==========================================
+    // 6. ЧИСТАЯ ОТРИСОВКА БЕЗ АУР И КОЛЕЦ
+    // ==========================================
+    function drawStadium() {
+        ctx.fillStyle = '#718c5a'; ctx.fillRect(-5000, -5000, 10000, 10000);
+        ctx.fillStyle = '#7ca263';
+        const stripeWidth = (FIELD.right - FIELD.left) / 16;
+        for (let i = 0; i < 16; i += 2) ctx.fillRect(FIELD.left + i * stripeWidth, FIELD.top, stripeWidth, FIELD.bottom - FIELD.top);
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'; ctx.lineWidth = 1.5;
+        for (let x = FIELD.left; x >= FIELD.left - GOAL_LEFT.depth; x -= 16) { ctx.beginPath(); ctx.moveTo(x, GOAL_LEFT.topY); ctx.lineTo(x, GOAL_LEFT.bottomY); ctx.stroke(); }
+        for (let y = GOAL_LEFT.topY; y <= GOAL_LEFT.bottomY; y += 16) { ctx.beginPath(); ctx.moveTo(FIELD.left, y); ctx.lineTo(FIELD.left - GOAL_LEFT.depth, y); ctx.stroke(); }
+        for (let x = FIELD.right; x <= FIELD.right + GOAL_RIGHT.depth; x += 16) { ctx.beginPath(); ctx.moveTo(x, GOAL_RIGHT.topY); ctx.lineTo(x, GOAL_RIGHT.bottomY); ctx.stroke(); }
+        for (let y = GOAL_RIGHT.topY; y <= GOAL_RIGHT.bottomY; y += 16) { ctx.beginPath(); ctx.moveTo(FIELD.right, y); ctx.lineTo(FIELD.right + GOAL_RIGHT.depth, y); ctx.stroke(); }
+
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4;
+        let r = currentPreset.cornerRadius || 0;
+        ctx.beginPath();
+        if (r > 0) {
+            ctx.moveTo(FIELD.left + r, FIELD.top); ctx.lineTo(FIELD.right - r, FIELD.top);
+            ctx.arcTo(FIELD.right, FIELD.top, FIELD.right, FIELD.top + r, r); ctx.lineTo(FIELD.right, GOAL_RIGHT.topY);
+            ctx.moveTo(FIELD.right, GOAL_RIGHT.bottomY); ctx.lineTo(FIELD.right, FIELD.bottom - r);
+            ctx.arcTo(FIELD.right, FIELD.bottom, FIELD.right - r, FIELD.bottom, r); ctx.lineTo(FIELD.left + r, FIELD.bottom);
+            ctx.arcTo(FIELD.left, FIELD.bottom, FIELD.left, FIELD.bottom - r, r); ctx.lineTo(FIELD.left, GOAL_LEFT.bottomY);
+            ctx.moveTo(FIELD.left, GOAL_LEFT.topY); ctx.lineTo(FIELD.left, FIELD.top + r);
+            ctx.arcTo(FIELD.left, FIELD.top, FIELD.left + r, FIELD.top, r);
+        } else {
+            ctx.moveTo(FIELD.left, FIELD.top); ctx.lineTo(FIELD.right, FIELD.top); ctx.lineTo(FIELD.right, GOAL_RIGHT.topY);
+            ctx.moveTo(FIELD.right, GOAL_RIGHT.bottomY); ctx.lineTo(FIELD.right, FIELD.bottom); ctx.lineTo(FIELD.left, FIELD.bottom);
+            ctx.lineTo(FIELD.left, GOAL_LEFT.bottomY); ctx.moveTo(FIELD.left, GOAL_LEFT.topY); ctx.lineTo(FIELD.left, FIELD.top);
+        }
+        ctx.stroke();
+
+        const centerX = (FIELD.left + FIELD.right) / 2, centerY = (FIELD.top + FIELD.bottom) / 2;
+        ctx.beginPath(); ctx.moveTo(centerX, FIELD.top); ctx.lineTo(centerX, FIELD.bottom); ctx.stroke();
+        ctx.beginPath(); ctx.arc(centerX, centerY, 160, 0, Math.PI * 2); ctx.stroke();
+
+        if (kickoffActive) {
+            ctx.fillStyle = kickoffAdvantage === 'RED' ? 'rgba(231, 76, 60, 0.15)' : 'rgba(52, 152, 219, 0.15)';
+            ctx.beginPath();
+            if (kickoffAdvantage === 'RED') ctx.arc(centerX, centerY, 160, Math.PI * 0.5, Math.PI * 1.5);
+            else ctx.arc(centerX, centerY, 160, Math.PI * 1.5, Math.PI * 0.5);
+            ctx.fill();
+        }
+
+        const postsToDraw = [
+            { x: GOAL_LEFT.x, y: GOAL_LEFT.topY }, { x: GOAL_LEFT.x, y: GOAL_LEFT.bottomY },
+            { x: GOAL_RIGHT.x, y: GOAL_RIGHT.topY }, { x: GOAL_RIGHT.x, y: GOAL_RIGHT.bottomY }
+        ];
+
+        postsToDraw.forEach(post => {
+            ctx.beginPath(); ctx.arc(post.x, post.y, GOAL_CONFIG.postRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#000000'; ctx.stroke();
+        });
+    }
+
+    function drawPlayer(p) {
+        // Белый ободок только при активном пинке (Space)
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = p.kicking ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = p.kicking ? 3 : 2; ctx.stroke();
+
+        ctx.save();
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.clip();
+        if (p.avatarImg) {
+            ctx.drawImage(p.avatarImg, p.x - p.radius, p.y - p.radius, p.radius * 2, p.radius * 2);
+        } else {
+            ctx.fillStyle = p.color; ctx.fill();
+        }
+        ctx.restore();
+
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.lineWidth = 2.5; ctx.strokeStyle = '#000000'; ctx.stroke();
+
+        if (p.number) {
+            ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 3; ctx.strokeText(p.number, p.x, p.y);
+            ctx.fillStyle = '#ffffff'; ctx.fillText(p.number, p.x, p.y);
+        }
+
+        if (p.nickname) {
+            ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 3; ctx.strokeText(p.nickname, p.x, p.y - p.radius - 10);
+            ctx.fillStyle = '#ffffff'; ctx.fillText(p.nickname, p.x, p.y - p.radius - 10);
+        }
+    }
+
+    function drawBall() {
+        ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fillStyle = ball.color; ctx.fill();
+        ctx.lineWidth = 2.5; ctx.strokeStyle = '#000000'; ctx.stroke();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.scale(camera.zoom, camera.zoom);
+        ctx.translate(-camera.x, -camera.y);
+
+        drawStadium();
+        Object.values(players).forEach(p => drawPlayer(p));
+        drawBall();
+
+        if (goalBannerTimer > 0) {
+            ctx.fillStyle = (lastScorer === 'RED') ? '#e74c3c' : '#3498db';
+            ctx.font = 'bold 88px sans-serif'; ctx.textAlign = 'center';
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 9;
+            const goalText = (lastScorer === 'RED') ? 'ГОЛ КРАСНЫХ!' : 'ГОЛ СИНИХ!';
+            ctx.strokeText(goalText, (FIELD.left + FIELD.right) / 2, (FIELD.top + FIELD.bottom) / 2);
+            ctx.fillText(goalText, (FIELD.left + FIELD.right) / 2, (FIELD.top + FIELD.bottom) / 2);
+        }
+
+        ctx.restore();
+    }
+
+    function loop() {
+        updatePhysics();
+        updateCamera();
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    loop();
+};
+</script>
+</body>
+</html>
