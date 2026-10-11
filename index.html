@@ -1000,7 +1000,7 @@ window.onload = function() {
                 }
             });
 
-            let tx = p.x, ty = p.y, shouldKick = false;
+            let tx = p.x, ty = p.y, shouldKick = false, kickAngle = null;
             if (isChaser) {
                 // Find the best passing lane, including through-balls into space.
                 const requested = humanMates
@@ -1139,6 +1139,8 @@ window.onload = function() {
                 const predictedBallX = ball.x + ball.vx * leadFrames;
                 const predictedBallY = ball.y + ball.vy * leadFrames;
                 const angle = Math.atan2(aimY-predictedBallY, aimX-predictedBallX);
+                // Store the AI's chosen pass/shot direction; contact geometry alone is not the aim.
+                kickAngle = angle;
                 const approach = p.radius + ball.radius + 7;
                 const desiredX = predictedBallX - Math.cos(angle)*approach;
                 const desiredY = predictedBallY - Math.sin(angle)*approach;
@@ -1292,6 +1294,7 @@ window.onload = function() {
                 p.vy += targetY*PHYS.playerAccel*accel;
             }
             p.kicking = shouldKick;
+            p.kickAngle = kickAngle;
             p.keys = { Space: shouldKick };
         });
     }
@@ -1347,6 +1350,11 @@ window.onload = function() {
 
             if (p.kicking && dist <= minDist + 8 && dist > 0 && Date.now() >= (p.kickCooldownUntil || 0)) {
                 let nx = dx / dist, ny = dy / dist;
+                // AI bots kick along their selected tactical aim, not merely away from their body.
+                if (p.isBot && Number.isFinite(p.kickAngle)) {
+                    nx = Math.cos(p.kickAngle);
+                    ny = Math.sin(p.kickAngle);
+                }
                 ball.vx += nx * PHYS.kickForce;
                 ball.vy += ny * PHYS.kickForce;
                 p.kickCooldownUntil = Date.now() + (p.isBot ? 45 : 220);
