@@ -942,6 +942,42 @@ window.onload = function() {
         kickoffActive = true;
     }
 
+    // Training telemetry: records decisions and match outcomes for later imitation/RL training.
+    // This does NOT train a neural network yet; it collects real states from this game.
+    const AI_TRAINING_DATA = { version: 1, samples: [], events: [] };
+    window.downloadAITrainingData = function () {
+        const payload = JSON.stringify(AI_TRAINING_DATA, null, 2);
+        const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'haxball-ai-training-data.json';
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    window.clearAITrainingData = function () {
+        AI_TRAINING_DATA.samples.length = 0;
+        AI_TRAINING_DATA.events.length = 0;
+        console.info('AI training telemetry cleared.');
+    };
+    function recordAIDecision(p, action, targetId) {
+        if (!isHost || !p.isBot) return;
+        const now = Date.now();
+        if (now - (p._lastTrainingSampleAt || 0) < 250) return; // 4 samples/sec/bot
+        p._lastTrainingSampleAt = now;
+        const snapshot = o => ({ id: o.id, team: o.team, x: o.x, y: o.y, vx: o.vx || 0, vy: o.vy || 0, isBot: !!o.isBot });
+        AI_TRAINING_DATA.samples.push({
+            t: now, playerId: p.id, team: p.team, action, targetId: targetId ?? null,
+            state: { ball: { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy },
+                self: snapshot(p), teammates: Object.values(players).filter(o => o.team === p.team && o.id !== p.id).map(snapshot),
+                opponents: Object.values(players).filter(o => o.team !== p.team).map(snapshot),
+                score: { red: scoreRed, blue: scoreBlue } }
+        });
+        if (AI_TRAINING_DATA.samples.length > 50000) AI_TRAINING_DATA.samples.splice(0, 5000);
+    }
+    function recordAIGoalEvent(scoringTeam) {
+        AI_TRAINING_DATA.events.push({ t: Date.now(), type: 'goal', scoringTeam, score: { red: scoreRed, blue: scoreBlue } });
+    }
+
     // ==========================================
     // 4. ТАКТИЧЕСКИЙ УМНЫЙ ИИ (ПЛАВНЫЙ И БЕЗ ТРЯСКИ)
     // ==========================================
@@ -1001,6 +1037,8 @@ window.onload = function() {
             });
 
             let tx = p.x, ty = p.y, shouldKick = false, kickAngle = null;
+            let aiAction = teamPossession ? 'support' : 'defend';
+            let aiTargetId = null;
             if (isChaser) {
                 // Find the best passing lane, including through-balls into space.
                 const requested = humanMates
@@ -1079,12 +1117,16 @@ window.onload = function() {
 
                 let aimX, aimY;
                 if (passTarget) {
+                    aiAction = Math.hypot(passTarget.point.x - passTarget.player.x, passTarget.point.y - passTarget.player.y) > 65 ? 'through_pass' : 'pass';
+                    aiTargetId = passTarget.player.id;
                     aimX = passTarget.point.x;
                     aimY = passTarget.point.y;
                 } else if (shoot) {
+                    aiAction = 'shoot';
                     aimX = attackX;
                     aimY = goodShotY;
                 } else {
+                    aiAction = 'dribble';
                     // Dynamic dribbling: re-evaluate several directions every frame.
                     // This prevents the bot from committing to one straight line for the whole attack.
                     const candidates = [
@@ -1296,6 +1338,7 @@ window.onload = function() {
             p.kicking = shouldKick;
             p.kickAngle = kickAngle;
             p.keys = { Space: shouldKick };
+            recordAIDecision(p, aiAction, aiTargetId);
         });
     }
 
@@ -1433,12 +1476,14 @@ window.onload = function() {
 
         if (ball.x - ball.radius > GOAL_RIGHT.x && ball.y > GOAL_RIGHT.topY && ball.y < GOAL_RIGHT.bottomY) {
             scoreRed++; scoreRedEl.innerText = scoreRed;
+            recordAIGoalEvent('RED');
             lastScorer = 'RED'; kickoffAdvantage = 'BLUE';
             goalBannerTimer = 90; resetPositions();
         }
 
         if (ball.x + ball.radius < GOAL_LEFT.x && ball.y > GOAL_LEFT.topY && ball.y < GOAL_LEFT.bottomY) {
             scoreBlue++; scoreBlueEl.innerText = scoreBlue;
+            recordAIGoalEvent('BLUE');
             lastScorer = 'BLUE'; kickoffAdvantage = 'RED';
             goalBannerTimer = 90; resetPositions();
         }
