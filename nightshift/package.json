@@ -1,0 +1,16 @@
+{
+  "name": "nightshift-street-legends",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node tests/physics.mjs",
+    "start": "node serve.mjs"
+  },
+  "dependencies": {
+    "three": "^0.183.0",
+    "vite": "^7.3.1"
+  }
+}
