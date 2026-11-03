@@ -1,0 +1,8 @@
+{
+  "frames": 3600,
+  "fps": 60,
+  "mean_absolute_difference": 0.8973922781012518,
+  "longest_near_static_seconds": 0.016666666666666666,
+  "decode_exit_code": 0,
+  "limitation": "Numerical frame changes are not a perceptual smoothness or sound review."
+}

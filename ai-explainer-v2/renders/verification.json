@@ -1,0 +1,12 @@
+{
+  "container_duration": true,
+  "width": true,
+  "height": true,
+  "fps": true,
+  "frames": true,
+  "video_codec": true,
+  "pixel_format": true,
+  "video_duration": true,
+  "audio_codec": true,
+  "audio_duration": true
+}
