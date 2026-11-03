@@ -1,0 +1,40 @@
+{
+  "archive_sha256": "f9cfb39988cbae9ca3756a8b0dce9ad68018a16399007ecbe9c597e38dd06709",
+  "parts": [
+    {
+      "file": "inside-ai-project.zip.part01",
+      "bytes": 26214400,
+      "sha256": "c06bd2b6b7a63ca7327680ed431a941b13ef25b1eb0deb02996e4337ffe5a92f",
+      "index": 1,
+      "blob_sha": "093254bbf9f58cef072cc5d72977531b3d2f5bbb"
+    },
+    {
+      "file": "inside-ai-project.zip.part02",
+      "bytes": 26214400,
+      "sha256": "62b0287e965319f5635dc0223f28eb53a2ccce6cb38a65d971f0d5588049a9a2",
+      "index": 2,
+      "blob_sha": "3e1aa57eef9eb37a79d1ea4565f95e70911d66c3"
+    },
+    {
+      "file": "inside-ai-project.zip.part03",
+      "bytes": 26214400,
+      "sha256": "2b3b4a50fd3f0d4fa277a5b3beb48c41095b96086c6652ecdde4c178f4f7d072",
+      "index": 3,
+      "blob_sha": "1e8d1e6c5ddfd1d79c4b40c911d4ec522c96a4aa"
+    },
+    {
+      "file": "inside-ai-project.zip.part04",
+      "bytes": 26214400,
+      "sha256": "e73645427104f0009f58114e159998155382796e8ecd83145034948a81674f11",
+      "index": 4,
+      "blob_sha": "680f7c1d35f40ee3f07fd4ca797f2f4a17c1a2dc"
+    },
+    {
+      "file": "inside-ai-project.zip.part05",
+      "bytes": 11654174,
+      "sha256": "e1088a5266696dd6e670834edc504d7a6c8d3d11ceb79822c534253613353132",
+      "index": 5,
+      "blob_sha": "3343516b8b2a08caf3840c769ae53a9a4c05298f"
+    }
+  ]
+}
